@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SpeedRacer.io - Гонки в стиле Need for Speed</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Arial', sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #fff;
+            overflow: hidden;
+            height: 100vh;
+        }
+        
+        #gameContainer {
+            position: relative;
+            width: 100%;
+            height: 100vh;
+        }
+        
+        #gameCanvas {
+            display: block;
+            background: #0f3460;
+        }
+        
+        #ui {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            padding: 20px;
+            pointer-events: none;
+        }
+        
+        #score {
+            font-size: 24px;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+            margin-bottom: 10px;
+        }
+        
+        #speed {
+            font-size: 18px;
+            color: #e94560;
+        }
+        
+        #boost {
+            width: 200px;
+            height: 20px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+            margin-top: 10px;
+            overflow: hidden;
+        }
+        
+        #boostBar {
+            height: 100%;
+            width: 100%;
+            background: linear-gradient(90deg, #e94560 0%, #ff7b9c 100%);
+            border-radius: 10px;
+            transition: width 0.3s;
+        }
+        
+        #startScreen, #gameOverScreen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 10;
+        }
+        
+        #gameOverScreen {
+            display: none;
+        }
+        
+        h1 {
+            font-size: 48px;
+            margin-bottom: 20px;
+            color: #e94560;
+            text-shadow: 0 0 10px rgba(233, 69, 96, 0.7);
+        }
+        
+        h2 {
+            font-size: 36px;
+            margin-bottom: 30px;
+        }
+        
+        button {
+            background: linear-gradient(135deg, #e94560 0%, #ff7b9c 100%);
+            border: none;
+            border-radius: 30px;
+            color: white;
+            font-size: 20px;
+            font-weight: bold;
+            padding: 15px 40px;
+            margin: 10px;
+            cursor: pointer;
+            pointer-events: auto;
+            transition: transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 4px 15px rgba(233, 69, 96, 0.4);
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(233, 69, 96, 0.6);
+        }
+        
+        #controls {
+            margin-top: 30px;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 10px;
+            max-width: 500px;
+            text-align: center;
+        }
+        
+        #leaderboard {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 15px;
+            border-radius: 10px;
+            min-width: 200px;
+        }
+        
+        #leaderboard h3 {
+            text-align: center;
+            margin-bottom: 10px;
+            color: #e94560;
+        }
+        
+        .leaderboard-item {
+            display: flex;
+            justify-content: space-between;
+            margin: 5px 0;
+            padding: 5px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .player-name {
+            font-weight: bold;
+        }
+        
+        .player-score {
+            color: #e94560;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas"></canvas>
+        
+        <div id="ui">
+            <div id="score">Очки: 0</div>
+            <div id="speed">Скорость: 0 км/ч</div>
+            <div id="boost">
+                <div id="boostBar"></div>
+            </div>
+        </div>
+        
+        <div id="leaderboard">
+            <h3>Таблица лидеров</h3>
+            <div id="leaderboardList">
+                <!-- Лидеры будут добавляться динамически -->
+            </div>
+        </div>
+        
+        <div id="startScreen">
+            <h1>SpeedRacer.io</h1>
+            <h2>Гонки в стиле Need for Speed</h2>
+            <button id="startButton">Начать игру</button>
+            <button id="instructionsButton">Инструкция</button>
+            
+            <div id="controls" style="display: none;">
+                <h3>Управление</h3>
+                <p>← → или A D - Поворот</p>
+                <p>↑ или W - Ускорение</p>
+                <p>↓ или S - Торможение</p>
+                <p>Пробел - Нитро</p>
+                <p>Собирайте монеты для увеличения счета</p>
+                <p>Избегайте столкновений с другими игроками</p>
+                <button id="backButton">Назад</button>
+            </div>
+        </div>
+        
+        <div id="gameOverScreen">
+            <h1>Игра окончена!</h1>
+            <h2 id="finalScore">Ваш счет: 0</h2>
+            <button id="restartButton">Играть снова</button>
+        </div>
+    </div>
+
+    <script>
+        // Элементы DOM
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const startScreen = document.getElementById('startScreen');
+        const gameOverScreen = document.getElementById('gameOverScreen');
+        const startButton = document.getElementById('startButton');
+        const instructionsButton = document.getElementById('instructionsButton');
+        const backButton = document.getElementById('backButton');
+        const restartButton = document.getElementById('restartButton');
+        const controls = document.getElementById('controls');
+        const scoreElement = document.getElementById('score');
+        const speedElement = document.getElementById('speed');
+        const boostBar = document.getElementById('boostBar');
+        const finalScoreElement = document.getElementById('finalScore');
+        const leaderboardList = document.getElementById('leaderboardList');
+
+        // Настройка canvas
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        // Игровые переменные
+        let gameActive = false;
+        let score = 0;
+        let speed = 0;
+        let boost = 100;
+        let players = [];
+        let coins = [];
+        let obstacles = [];
+        let keys = {};
+        
+        // Класс игрока
+        class Player {
+            constructor(x, y, color, name, isPlayer = false) {
+                this.x = x;
+                this.y = y;
+                this.width = 40;
+                this.height = 70;
+                this.color = color;
+                this.name = name;
+                this.speed = 0;
+                this.maxSpeed = isPlayer ? 10 : 8;
+                this.acceleration = 0.1;
+                this.deceleration = 0.05;
+                this.rotation = 0;
+                this.rotationSpeed = 0.05;
+                this.drift = 0;
+                this.isPlayer = isPlayer;
+                this.score = 0;
+            }
+            
+            update() {
+                // Движение вперед/назад
+                if (this.isPlayer) {
+                    if (keys['ArrowUp'] || keys['w']) {
+                        this.speed = Math.min(this.speed + this.acceleration, this.maxSpeed);
+                    } else if (keys['ArrowDown'] || keys['s']) {
+                        this.speed = Math.max(this.speed - this.acceleration, -this.maxSpeed/2);
+                    } else {
+                        // Постепенное замедление
+                        if (this.speed > 0) {
+                            this.speed = Math.max(this.speed - this.deceleration, 0);
+                        } else if (this.speed < 0) {
+                            this.speed = Math.min(this.speed + this.deceleration, 0);
+                        }
+                    }
+                    
+                    // Поворот
+                    if (keys['ArrowLeft'] || keys['a']) {
+                        this.rotation -= this.rotationSpeed * (this.speed / this.maxSpeed);
+                    }
+                    if (keys['ArrowRight'] || keys['d']) {
+                        this.rotation += this.rotationSpeed * (this.speed / this.maxSpeed);
+                    }
+                    
+                    // Нитро
+                    if ((keys[' '] || keys['Shift']) && boost > 0) {
+                        this.speed = Math.min(this.speed + 0.3, this.maxSpeed * 1.5);
+                        boost = Math.max(boost - 0.5, 0);
+                    }
+                } else {
+                    // ИИ для других игроков
+                    this.speed = this.maxSpeed * 0.7;
+                    this.rotation += (Math.random() - 0.5) * 0.02;
+                    
+                    // Случайное изменение направления
+                    if (Math.random() < 0.01) {
+                        this.rotation += (Math.random() - 0.5) * 0.3;
+                    }
+                }
+                
+                // Обновление позиции
+                this.x += Math.sin(this.rotation) * this.speed;
+                this.y -= Math.cos(this.rotation) * this.speed;
+                
+                // Ограничение движения в пределах canvas
+                if (this.x < 0) this.x = canvas.width;
+                if (this.x > canvas.width) this.x = 0;
+                if (this.y < 0) this.y = canvas.height;
+                if (this.y > canvas.height) this.y = 0;
+                
+                // Дрифт
+                this.drift = Math.max(0, this.drift - 0.1);
+            }
+            
+            draw() {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.rotation);
+                
+                // Кузов машины
+                ctx.fillStyle = this.color;
+                ctx.fillRect(-this.width/2, -this.height/2, this.width, this.height);
+                
+                // Окна
+                ctx.fillStyle = '#87CEEB';
+                ctx.fillRect(-this.width/2 + 5, -this.height/2 + 5, this.width - 10, 15);
+                ctx.fillRect(-this.width/2 + 5, this.height/2 - 20, this.width - 10, 15);
+                
+                // Фары
+                ctx.fillStyle = '#FFFF00';
+                ctx.fillRect(-this.width/2 - 2, -this.height/2 + 10, 4, 8);
+                ctx.fillRect(this.width/2 - 2, -this.height/2 + 10, 4, 8);
+                
+                // Задние огни
+                ctx.fillStyle = '#FF0000';
+                ctx.fillRect(-this.width/2 - 2, this.height/2 - 15, 4, 8);
+                ctx.fillRect(this.width/2 - 2, this.height/2 - 15, 4, 8);
+                
+                // Эффект дрифта
+                if (this.drift > 0) {
+                    ctx.fillStyle = `rgba(255, 255, 255, ${this.drift})`;
+                    ctx.fillRect(-this.width/2 - 10, this.height/2 - 5, this.width + 20, 5);
+                }
+                
+                ctx.restore();
+                
+                // Имя игрока
+                if (!this.isPlayer) {
+                    ctx.fillStyle = '#FFFFFF';
+                    ctx.font = '12px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(this.name, this.x, this.y - 50);
+                    ctx.fillText(`Очки: ${this.score}`, this.x, this.y - 35);
+                }
+            }
+        }
+        
+        // Класс монеты
+        class Coin {
+            constructor() {
+                this.x = Math.random() * canvas.width;
+                this.y = Math.random() * canvas.height;
+                this.radius = 10;
+                this.color = '#FFD700';
+            }
+            
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.fill();
+                ctx.strokeStyle = '#D4AF37';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                
+                // Блеск
+                ctx.beginPath();
+                ctx.arc(this.x - 3, this.y - 3, 3, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+                ctx.fill();
+            }
+        }
+        
+        // Класс препятствия
+        class Obstacle {
+            constructor() {
+                this.x = Math.random() * canvas.width;
+                this.y = Math.random() * canvas.height;
+                this.width = 30 + Math.random() * 50;
+                this.height = 30 + Math.random() * 50;
+                this.color = '#8B4513';
+            }
+            
+            draw() {
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x - this.width/2, this.y - this.height/2, this.width, this.height);
+                
+                // Текстура
+                ctx.strokeStyle = '#A0522D';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(this.x - this.width/2, this.y - this.height/2, this.width, this.height);
+            }
+        }
+        
+        // Создание игроков
+        function createPlayers() {
+            // Главный игрок
+            const player = new Player(canvas.width/2, canvas.height/2, '#E94560', 'Вы', true);
+            players.push(player);
+            
+            // Боты
+            const botNames = ['Гонщик', 'Спидстер', 'Дрифтер', 'Болид', 'Турбо', 'НитроБот'];
+            const botColors = ['#3498db', '#2ecc71', '#f39c12', '#9b59b6', '#1abc9c', '#e74c3c'];
+            
+            for (let i = 0; i < 5; i++) {
+                const x = Math.random() * canvas.width;
+                const y = Math.random() * canvas.height;
+                const color = botColors[i % botColors.length];
+                const name = botNames[i % botNames.length] + (i > 5 ? ' ' + Math.floor(i/6) : '');
+                players.push(new Player(x, y, color, name));
+            }
+        }
+        
+        // Создание монет
+        function createCoins() {
+            coins = [];
+            for (let i = 0; i < 20; i++) {
+                coins.push(new Coin());
+            }
+        }
+        
+        // Создание препятствий
+        function createObstacles() {
+            obstacles = [];
+            for (let i = 0; i < 10; i++) {
+                obstacles.push(new Obstacle());
+            }
+        }
+        
+        // Проверка столкновений
+        function checkCollisions() {
+            const player = players[0];
+            
+            // Проверка столкновений с монетами
+            for (let i = coins.length - 1; i >= 0; i--) {
+                const coin = coins[i];
+                const dx = player.x - coin.x;
+                const dy = player.y - coin.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                if (distance < player.width/2 + coin.radius) {
+                    // Сбор монеты
+                    coins.splice(i, 1);
+                    score += 10;
+                    player.score += 10;
+                    
+                    // Создание новой монеты
+                    coins.push(new Coin());
+                    
+                    // Восстановление нитро
+                    boost = Math.min(boost + 5, 100);
+                }
+            }
+            
+            // Проверка столкновений с препятствиями
+            for (let obstacle of obstacles) {
+                if (player.x + player.width/2 > obstacle.x - obstacle.width/2 &&
+                    player.x - player.width/2 < obstacle.x + obstacle.width/2 &&
+                    player.y + player.height/2 > obstacle.y - obstacle.height/2 &&
+                    player.y - player.height/2 < obstacle.y + obstacle.height/2) {
+                    
+                    // Столкновение с препятствием
+                    player.speed *= -0.5;
+                    player.drift = 1;
+                    score = Math.max(score - 5, 0);
+                    player.score = Math.max(player.score - 5, 0);
+                }
+            }
+            
+            // Проверка столкновений с другими игроками
+            for (let i = 1; i < players.length; i++) {
+                const bot = players[i];
+                const dx = player.x - bot.x;
+                const dy = player.y - bot.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                if (distance < player.width/2 + bot.width/2) {
+                    // Столкновение с другим игроком
+                    player.speed *= -0.7;
+                    bot.speed *= -0.7;
+                    player.drift = 1;
+                    bot.drift = 1;
+                    
+                    // Обмен очками (если у игрока больше очков, он теряет часть)
+                    if (player.score > bot.score) {
+                        const lostPoints = Math.floor(player.score * 0.1);
+                        player.score -= lostPoints;
+                        bot.score += lostPoints;
+                    }
+                }
+            }
+        }
+        
+        // Обновление игры
+        function update() {
+            if (!gameActive) return;
+            
+            // Обновление игроков
+            players.forEach(player => player.update());
+            
+            // Проверка столкновений
+            checkCollisions();
+            
+            // Обновление UI
+            scoreElement.textContent = `Очки: ${score}`;
+            speedElement.textContent = `Скорость: ${Math.round(Math.abs(players[0].speed) * 20)} км/ч`;
+            boostBar.style.width = `${boost}%`;
+            
+            // Восстановление нитро
+            if (boost < 100 && !keys[' '] && !keys['Shift']) {
+                boost = Math.min(boost + 0.1, 100);
+            }
+            
+            // Обновление таблицы лидеров
+            updateLeaderboard();
+            
+            // Отрисовка
+            draw();
+            
+            // Продолжить игровой цикл
+            requestAnimationFrame(update);
+        }
+        
+        // Отрисовка игры
+        function draw() {
+            // Очистка canvas
+            ctx.fillStyle = '#0f3460';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Рисование дорожной разметки
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+            ctx.lineWidth = 3;
+            ctx.setLineDash([20, 20]);
+            
+            for (let i = 0; i < canvas.width; i += 100) {
+                ctx.beginPath();
+                ctx.moveTo(i, 0);
+                ctx.lineTo(i, canvas.height);
+                ctx.stroke();
+            }
+            
+            ctx.setLineDash([]);
+            
+            // Отрисовка препятствий
+            obstacles.forEach(obstacle => obstacle.draw());
+            
+            // Отрисовка монет
+            coins.forEach(coin => coin.draw());
+            
+            // Отрисовка игроков
+            players.forEach(player => player.draw());
+        }
+        
+        // Обновление таблицы лидеров
+        function updateLeaderboard() {
+            // Сортировка игроков по очкам
+            const sortedPlayers = [...players].sort((a, b) => b.score - a.score);
+            
+            // Очистка списка
+            leaderboardList.innerHTML = '';
+            
+            // Добавление топ-5 игроков
+            for (let i = 0; i < Math.min(5, sortedPlayers.length); i++) {
+                const player = sortedPlayers[i];
+                const item = document.createElement('div');
+                item.className = 'leaderboard-item';
+                item.innerHTML = `
+                    <span class="player-name">${player.name}</span>
+                    <span class="player-score">${player.score}</span>
+                `;
+                leaderboardList.appendChild(item);
+            }
+        }
+        
+        // Начало игры
+        function startGame() {
+            gameActive = true;
+            score = 0;
+            boost = 100;
+            players = [];
+            coins = [];
+            obstacles = [];
+            
+            startScreen.style.display = 'none';
+            gameOverScreen.style.display = 'none';
+            
+            createPlayers();
+            createCoins();
+            createObstacles();
+            
+            update();
+        }
+        
+        // Конец игры
+        function endGame() {
+            gameActive = false;
+            finalScoreElement.textContent = `Ваш счет: ${score}`;
+            gameOverScreen.style.display = 'flex';
+        }
+        
+        // Обработчики событий
+        startButton.addEventListener('click', startGame);
+        
+        instructionsButton.addEventListener('click', () => {
+            controls.style.display = 'block';
+        });
+        
+        backButton.addEventListener('click', () => {
+            controls.style.display = 'none';
+        });
+        
+        restartButton.addEventListener('click', startGame);
+        
+        // Обработка нажатий клавиш
+        window.addEventListener('keydown', (e) => {
+            keys[e.key] = true;
+        });
+        
+        window.addEventListener('keyup', (e) => {
+            keys[e.key] = false;
+        });
+        
+        // Обработка изменения размера окна
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        });
+        
+        // Автоматическое завершение игры через 2 минуты (для демонстрации)
+        setTimeout(() => {
+            if (gameActive) {
+                endGame();
+            }
+        }, 120000);
+    </script>
+</body>
+</html>
